@@ -1,4 +1,5 @@
 import { GetStaticProps } from 'next';
+import Head from 'next/head';
 import { getMoments } from '../lib/notion';
 import React, { useEffect, useRef, useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -9,6 +10,8 @@ import { ReactNode } from 'react';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
+import MusicPlayer from '../components/MusicPlayer';
+import Live2DWidget from '../components/Live2DWidget';
 dayjs.extend(relativeTime);
 dayjs.locale('zh-cn');
 
@@ -115,23 +118,78 @@ const MomentsPage: React.FC<MomentsPageProps> = ({ moments }) => {
     }
   }, [activeCommentId]);
 
-  // 新增：根据时间自动切换主题
+  // 从 localStorage 读取主题设置，如果没有则根据时间自动切换
   useEffect(() => {
-    const hour = new Date().getHours();
-    if (hour >= 18 || hour < 6) {
-      setTheme('dark');
+    const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' | null;
+    if (savedTheme) {
+      setTheme(savedTheme);
     } else {
-      setTheme('light');
+      const hour = new Date().getHours();
+      if (hour >= 18 || hour < 6) {
+        setTheme('dark');
+      } else {
+        setTheme('light');
+      }
     }
   }, []);
 
   useEffect(() => {
     document.body.classList.toggle('dark-theme', theme === 'dark');
     document.body.classList.toggle('light-theme', theme === 'light');
+    localStorage.setItem('theme', theme);
   }, [theme]);
 
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'light' ? 'dark' : 'light');
+  };
+
   return (
-    <div className={`main-container ${theme}-theme`}>
+    <>
+      <Head>
+        <title>日常瞬间</title>
+        <meta name="description" content="记录生活中的美好瞬间" />
+        <link rel="icon" href="/favicon.ico" />
+        <link rel="shortcut icon" href="/favicon.ico" />
+      </Head>
+      <div className={`main-container ${theme}-theme`}>
+        {/* 主题切换按钮 */}
+      <button
+        className="theme-toggle-btn"
+        onClick={toggleTheme}
+        aria-label={theme === 'light' ? '切换到深色模式' : '切换到浅色模式'}
+      >
+        {theme === 'light' ? (
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+            <g fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
+              <path d="M12 6c3.31 0 6 2.69 6 6c0 3.31 -2.69 6 -6 6c-3.31 0 -6 -2.69 -6 -6c0 -3.31 2.69 -6 6 -6Z">
+                <animate fill="freeze" attributeName="d" dur="0.6s" values="M12 26c3.31 0 6 2.69 6 6c0 3.31 -2.69 6 -6 6c-3.31 0 -6 -2.69 -6 -6c0 -3.31 2.69 -6 6 -6Z;M12 6c3.31 0 6 2.69 6 6c0 3.31 -2.69 6 -6 6c-3.31 0 -6 -2.69 -6 -6c0 -3.31 2.69 -6 6 -6Z"/>
+              </path>
+              <path d="M12 21v1M21 12h1M12 3v-1M3 12h-1" opacity="0">
+                <set fill="freeze" attributeName="opacity" begin="0.7s" to="1"/>
+                <animate fill="freeze" attributeName="d" begin="0.7s" dur="0.2s" values="M12 19v1M19 12h1M12 5v-1M5 12h-1;M12 21v1M21 12h1M12 3v-1M3 12h-1"/>
+              </path>
+              <path d="M18.5 18.5l0.5 0.5M18.5 5.5l0.5 -0.5M5.5 5.5l-0.5 -0.5M5.5 18.5l-0.5 0.5" opacity="0">
+                <set fill="freeze" attributeName="opacity" begin="0.9s" to="1"/>
+                <animate fill="freeze" attributeName="d" begin="0.9s" dur="0.2s" values="M17 17l0.5 0.5M17 7l0.5 -0.5M7 7l-0.5 -0.5M7 17l-0.5 0.5;M18.5 18.5l0.5 0.5M18.5 5.5l0.5 -0.5M5.5 5.5l-0.5 -0.5M5.5 18.5l-0.5 0.5"/>
+              </path>
+            </g>
+          </svg>
+        ) : (
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+            <path fill="none" stroke="currentColor" strokeDasharray="56" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 6c0 6.08 4.92 11 11 11c0.53 0 1.05 -0.04 1.56 -0.11c-1.61 2.47 -4.39 4.11 -7.56 4.11c-4.97 0 -9 -4.03 -9 -9c0 -3.17 1.64 -5.95 4.11 -7.56c-0.07 0.51 -0.11 1.03 -0.11 1.56Z">
+              <animate fill="freeze" attributeName="stroke-dashoffset" dur="0.6s" values="56;0"/>
+            </path>
+            <g fill="currentColor">
+              <path d="M15.22 6.03l2.53 -1.94l-3.19 -0.09l-1.06 -3l-1.06 3l-3.19 0.09l2.53 1.94l-0.91 3.06l2.63 -1.81l2.63 1.81l-0.91 -3.06Z" opacity="0">
+                <animate fill="freeze" attributeName="opacity" begin="0.7s" dur="0.4s" to="1"/>
+              </path>
+              <path d="M19.61 12.25l1.64 -1.25l-2.06 -0.05l-0.69 -1.95l-0.69 1.95l-2.06 0.05l1.64 1.25l-0.59 1.98l1.7 -1.17l1.7 1.17l-0.59 -1.98Z" opacity="0">
+                <animate fill="freeze" attributeName="opacity" begin="1.1s" dur="0.4s" to="1"/>
+              </path>
+            </g>
+          </svg>
+        )}
+      </button>
       <h1 style={{ textAlign: 'center' }} className="main-title">日常瞬间</h1>
       <div>
         {moments.map(moment => {
@@ -159,7 +217,7 @@ const MomentsPage: React.FC<MomentsPageProps> = ({ moments }) => {
               {moment.image && <img src={moment.image} alt={moment.title} style={{ width: '100%', borderRadius: 8, margin: '12px 0' }} />}
               <div style={{ fontWeight: 'bold', fontSize: 16 }} className="moment-title">{moment.title}</div>
               {moment.mood && (
-                <div style={{
+                <div className="mood-tag" style={{
                   display: 'inline-block',
                   background: '#f0f0f0',
                   borderRadius: '12px',
@@ -427,6 +485,10 @@ const MomentsPage: React.FC<MomentsPageProps> = ({ moments }) => {
         @import url('https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.7.0/style.css');
         body, .main-container, html {
           font-family: 'LXGW WenKai', '霞鹜文楷', 'WenKai', 'STKaiti', 'KaiTi', serif !important;
+          cursor: url('/default.cur'), auto;
+        }
+        a, button, [role="button"], input, textarea, select, .cursor-pointer {
+          cursor: url('/default.cur'), pointer;
         }
         body, .main-container {
           background: #fff;
@@ -635,12 +697,73 @@ const MomentsPage: React.FC<MomentsPageProps> = ({ moments }) => {
           border-color: #333 !important;
           color: #bbbbbb !important;
         }
+        /* 主题切换按钮样式 */
+        .theme-toggle-btn {
+          position: fixed;
+          top: 20px;
+          right: 20px;
+          width: 44px;
+          height: 44px;
+          border-radius: 50%;
+          border: 1px solid #e0e0e0;
+          background: #fff;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.3s ease;
+          z-index: 100;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+          color: #dc2626;
+        }
+        .theme-toggle-btn:hover {
+          transform: scale(1.1);
+          box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        body.dark-theme .theme-toggle-btn,
+        .main-container.dark-theme .theme-toggle-btn {
+          background: #232323 !important;
+          border-color: #444 !important;
+          color: #dc2626;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+        /* 深色模式下更多元素适配 */
+        body.dark-theme .moment-date,
+        .main-container.dark-theme .moment-date {
+          color: #888 !important;
+        }
+        body.dark-theme .moment-user a,
+        .main-container.dark-theme .moment-user a {
+          color: #4a9eff !important;
+        }
+        body.dark-theme .main-container,
+        .main-container.dark-theme {
+          background: #181818 !important;
+        }
+        /* 深色模式下心情标签 */
+        body.dark-theme .mood-tag,
+        .main-container.dark-theme .mood-tag {
+          background: #333 !important;
+          color: #aaa !important;
+        }
       `}</style>
       {/* 底部横线提示 */}
       <div className="bottom-line">
         <span>已经到底啦</span>
       </div>
+
+      {/* 音乐播放器 */}
+      <MusicPlayer
+        server="netease"
+        type="playlist"
+        id="13681647281"
+        volume={0.8}
+      />
+
+      {/* Live2D 看板娘 */}
+      <Live2DWidget theme={theme} />
     </div>
+    </>
   );
 };
 
