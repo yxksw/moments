@@ -17,7 +17,7 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "next build && node scripts/generate-json.js",
+    "build": "next build && node scripts/generate-json.js && node scripts/copy-headers.js",
     "start": "next start"
   }
 }
