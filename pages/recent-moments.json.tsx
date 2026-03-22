@@ -6,6 +6,7 @@ interface RecentMoment {
   title: string;
   date: string;
   mood: string;
+  content: string;
 }
 
 interface RecentMomentsData {
@@ -23,19 +24,23 @@ export default function RecentMomentsJSON({ data }: { data: RecentMomentsData })
   return JSON.stringify(data, null, 2);
 }
 
+// 自定义 Logo 图片地址（放在 public 目录下或外部 URL）
+const CUSTOM_LOGO = 'https://cn.cravatar.com/avatar/56cd72b5460ecaa08ddffea9562f5629?size=512'; // 或者使用外部 URL: 'https://your-cdn.com/logo.png'
+
 export const getStaticProps: GetStaticProps<{ data: RecentMomentsData }> = async () => {
   try {
     // 获取所有瞬间
     const allMoments = await getMoments();
-    
+
     // 默认取最近10条，并只返回需要的字段
     const recentMoments = allMoments
       .slice(0, 10)
       .map(moment => ({
-        logo: moment.icon,
+        logo: CUSTOM_LOGO,
         title: moment.title,
         date: moment.date,
-        mood: moment.mood
+        mood: moment.mood,
+        content: moment.content
       }));
 
     const data: RecentMomentsData = {

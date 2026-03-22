@@ -199,17 +199,11 @@ const MomentsPage: React.FC<MomentsPageProps> = ({ moments }) => {
             <div key={moment.id} className="moment-card">
               <div className="moment-header">
                 <div className="moment-user">
-                  {moment.icon && (
-                    moment.icon.startsWith('http') ? (
-                      <img
-                        src={moment.icon}
-                        alt="icon"
-                        style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', background: '#f5f5f5', marginRight: 6 }}
-                      />
-                    ) : (
-                      <span style={{ fontSize: 28, marginRight: 6 }}>{moment.icon}</span>
-                    )
-                  )}
+                  <img
+                    src="https://cn.cravatar.com/avatar/56cd72b5460ecaa08ddffea9562f5629?size=512"
+                    alt="avatar"
+                    style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', background: '#f5f5f5', marginRight: 6 }}
+                  />
                   { <a href={BLOG_URL} target="_blank" rel="noopener noreferrer" style={{ fontSize: 16, color: '#0070f3', textDecoration: 'none' }}>{moment.username}</a> }
                 </div>
                 <div className="moment-date">{dayjs(moment.date).fromNow()}</div>

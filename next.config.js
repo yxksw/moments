@@ -1,22 +1,22 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'export',
+  output: "export",
   async headers() {
     return [
       {
-        source: '/recent-moments.json',
+        source: "/recent-moments.json",
         headers: [
           {
-            key: 'Access-Control-Allow-Origin',
-            value: '*',
+            key: "Access-Control-Allow-Origin",
+            value: "*",
           },
           {
-            key: 'Access-Control-Allow-Methods',
-            value: 'GET, OPTIONS',
+            key: "Access-Control-Allow-Methods",
+            value: "GET, OPTIONS",
           },
           {
-            key: 'Access-Control-Allow-Headers',
-            value: 'Content-Type',
+            key: "Access-Control-Allow-Headers",
+            value: "Content-Type",
           },
         ],
       },
@@ -24,4 +24,4 @@ const nextConfig = {
   },
 };
 
-module.exports = nextConfig; 
+module.exports = nextConfig;
