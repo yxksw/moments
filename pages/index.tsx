@@ -1,4 +1,6 @@
+import { GetStaticProps } from 'next';
 import Head from 'next/head';
+import { getMoments } from '../lib/notion';
 import React, { useEffect, useRef, useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faComment } from '@fortawesome/free-solid-svg-icons';
@@ -22,74 +24,42 @@ interface Moment {
   mood?: string;
   icon?: string;
   content?: string;
-  images?: string[];
+  images?: string[]; // 新增图片数组字段
+}
+
+interface MomentsPageProps {
+  moments: Moment[];
 }
 
 const TWIKOO_URL = process.env.NEXT_PUBLIC_TWIKOO_URL || '';
 const BLOG_URL = process.env.NEXT_PUBLIC_BLOG_URL || 'https://blog.lusyoe.com';
 
-// API 基础 URL
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
-
-const MomentsPage: React.FC = () => {
-  const [moments, setMoments] = useState<Moment[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+const MomentsPage: React.FC<MomentsPageProps> = ({ moments }) => {
   const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
   const twikooInitedRef = useRef<string | null>(null);
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
   const [zoomImg, setZoomImg] = useState<string | null>(null);
+  // 删除缩略图url、原图url状态
+  // const [zoomImgThumb, setZoomImgThumb] = useState<string | null>(null);
+  // const [zoomImgOrigin, setZoomImgOrigin] = useState<string | null>(null);
   const [zoomImgIndex, setZoomImgIndex] = useState<number>(-1);
   const [zoomImgList, setZoomImgList] = useState<string[]>([]);
   const [showOriginal, setShowOriginal] = useState(false);
   const [loadingOriginal, setLoadingOriginal] = useState(false);
+  // 新增主题状态
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [now, setNow] = useState(Date.now());
 
-  // 定时更新相对时间
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 60 * 1000);
     return () => clearInterval(timer);
   }, []);
 
-  // 从 API 获取数据
-  useEffect(() => {
-    const fetchMoments = async () => {
-      try {
-        setLoading(true);
-        const response = await fetch(`${API_BASE_URL}/api/moments`);
-        if (!response.ok) {
-          throw new Error('获取数据失败');
-        }
-        const data = await response.json();
-        if (data.success) {
-          // 转换数据格式
-          const formattedMoments: Moment[] = data.data.map((item: any, index: number) => ({
-            id: `moment-${index}`,
-            title: item.title,
-            username: '异飨客', // 可以从 API 返回或配置
-            date: item.date,
-            mood: item.mood,
-            content: item.content,
-            images: item.images || []
-          }));
-          setMoments(formattedMoments);
-        } else {
-          setError(data.message || '获取数据失败');
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : '未知错误');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchMoments();
-  }, []);
+  // 删除 getThumbUrl 函数
 
   // 批量获取评论数
   useEffect(() => {
-    if (typeof window === 'undefined' || moments.length === 0) return;
+    if (typeof window === 'undefined') return;
     function fetchCounts() {
       if ((window as any).twikoo && typeof (window as any).twikoo.getCommentsCount === 'function') {
         (window as any).twikoo.getCommentsCount({
@@ -120,6 +90,7 @@ const MomentsPage: React.FC = () => {
   useEffect(() => {
     if (!activeCommentId) return;
     const elId = `twikoo-moment-${activeCommentId}`;
+    // 销毁上一个评论区内容
     if (twikooInitedRef.current && twikooInitedRef.current !== activeCommentId) {
       const prevEl = document.getElementById(`twikoo-moment-${twikooInitedRef.current}`);
       if (prevEl) prevEl.innerHTML = '';
@@ -147,7 +118,7 @@ const MomentsPage: React.FC = () => {
     }
   }, [activeCommentId]);
 
-  // 从 localStorage 读取主题设置
+  // 从 localStorage 读取主题设置，如果没有则根据时间自动切换
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' | null;
     if (savedTheme) {
@@ -172,52 +143,6 @@ const MomentsPage: React.FC = () => {
     setTheme(prev => prev === 'light' ? 'dark' : 'light');
   };
 
-  // 图片放大查看
-  const openZoom = (img: string, imgs: string[], idx: number) => {
-    setZoomImg(img);
-    setZoomImgList(imgs);
-    setZoomImgIndex(idx);
-    setShowOriginal(false);
-    setLoadingOriginal(false);
-  };
-  const closeZoom = () => {
-    setZoomImg(null);
-    setZoomImgIndex(-1);
-    setZoomImgList([]);
-    setShowOriginal(false);
-    setLoadingOriginal(false);
-  };
-  const showNext = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (zoomImgList.length > 0 && zoomImgIndex >= 0) {
-      const nextIdx = (zoomImgIndex + 1) % zoomImgList.length;
-      setZoomImgIndex(nextIdx);
-      setZoomImg(zoomImgList[nextIdx]);
-      setShowOriginal(false);
-      setLoadingOriginal(false);
-    }
-  };
-  const showPrev = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (zoomImgList.length > 0 && zoomImgIndex >= 0) {
-      const prevIdx = (zoomImgIndex - 1 + zoomImgList.length) % zoomImgList.length;
-      setZoomImgIndex(prevIdx);
-      setZoomImg(zoomImgList[prevIdx]);
-      setShowOriginal(false);
-      setLoadingOriginal(false);
-    }
-  };
-
-  // 自定义图片渲染组件
-  const ImageRenderer = ({ src, alt }: { src: string; alt: string }) => (
-    <img
-      src={src}
-      alt={alt}
-      style={{ maxWidth: '100%', borderRadius: 8, margin: '8px 0' }}
-      loading="lazy"
-    />
-  );
-
   return (
     <>
       <Head>
@@ -228,185 +153,328 @@ const MomentsPage: React.FC = () => {
       </Head>
       <div className={`main-container ${theme}-theme`}>
         {/* 主题切换按钮 */}
-        <button
-          className="theme-toggle-btn"
-          onClick={toggleTheme}
-          aria-label={theme === 'light' ? '切换到深色模式' : '切换到浅色模式'}
-        >
-          {theme === 'light' ? (
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
-              <g fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
-                <path d="M12 6c3.31 0 6 2.69 6 6c0 3.31 -2.69 6 -6 6c-3.31 0 -6 -2.69 -6 -6c0 -3.31 2.69 -6 6 -6Z">
-                  <animate fill="freeze" attributeName="d" dur="0.6s" values="M12 26c3.31 0 6 2.69 6 6c0 3.31 -2.69 6 -6 6c-3.31 0 -6 -2.69 -6 -6c0 -3.31 2.69 -6 6 -6Z;M12 6c3.31 0 6 2.69 6 6c0 3.31 -2.69 6 -6 6c-3.31 0 -6 -2.69 -6 -6c0 -3.31 2.69 -6 6 -6Z"/>
-                </path>
-                <path d="M12 21v1M21 12h1M12 3v-1M3 12h-1" opacity="0">
-                  <set fill="freeze" attributeName="opacity" begin="0.7s" to="1"/>
-                  <animate fill="freeze" attributeName="d" begin="0.7s" dur="0.2s" values="M12 19v1M19 12h1M12 5v-1M5 12h-1;M12 21v1M21 12h1M12 3v-1M3 12h-1"/>
-                </path>
-                <path d="M18.5 18.5l0.5 0.5M18.5 5.5l0.5 -0.5M5.5 5.5l-0.5 -0.5M5.5 18.5l-0.5 0.5" opacity="0">
-                  <set fill="freeze" attributeName="opacity" begin="0.9s" to="1"/>
-                  <animate fill="freeze" attributeName="d" begin="0.9s" dur="0.2s" values="M17 17l0.5 0.5M17 7l0.5 -0.5M7 7l-0.5 -0.5M7 17l-0.5 0.5;M18.5 18.5l0.5 0.5M18.5 5.5l0.5 -0.5M5.5 5.5l-0.5 -0.5M5.5 18.5l-0.5 0.5"/>
-                </path>
-              </g>
-            </svg>
-          ) : (
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
-              <path fill="none" stroke="currentColor" strokeDasharray="56" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 6c0 6.08 4.92 11 11 11c0.53 0 1.05 -0.04 1.56 -0.11c-1.61 2.47 -4.39 4.11 -7.56 4.11c-4.97 0 -9 -4.03 -9 -9c0 -3.17 1.64 -5.95 4.11 -7.56c-0.07 0.51 -0.11 1.03 -0.11 1.56Z">
-                <animate fill="freeze" attributeName="stroke-dashoffset" dur="0.6s" values="56;0"/>
+      <button
+        className="theme-toggle-btn"
+        onClick={toggleTheme}
+        aria-label={theme === 'light' ? '切换到深色模式' : '切换到浅色模式'}
+      >
+        {theme === 'light' ? (
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+            <g fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
+              <path d="M12 6c3.31 0 6 2.69 6 6c0 3.31 -2.69 6 -6 6c-3.31 0 -6 -2.69 -6 -6c0 -3.31 2.69 -6 6 -6Z">
+                <animate fill="freeze" attributeName="d" dur="0.6s" values="M12 26c3.31 0 6 2.69 6 6c0 3.31 -2.69 6 -6 6c-3.31 0 -6 -2.69 -6 -6c0 -3.31 2.69 -6 6 -6Z;M12 6c3.31 0 6 2.69 6 6c0 3.31 -2.69 6 -6 6c-3.31 0 -6 -2.69 -6 -6c0 -3.31 2.69 -6 6 -6Z"/>
               </path>
-              <g fill="currentColor">
-                <path d="M15.22 6.03l2.53 -1.94l-3.19 -0.09l-1.06 -3l-1.06 3l-3.19 0.09l2.53 1.94l-0.91 3.06l2.63 -1.81l2.63 1.81l-0.91 -3.06Z" opacity="0">
-                  <animate fill="freeze" attributeName="opacity" begin="0.7s" dur="0.4s" to="1"/>
-                </path>
-                <path d="M19.61 12.25l1.64 -1.25l-2.06 -0.05l-0.69 -1.95l-0.69 1.95l-2.06 0.05l1.64 1.25l-0.59 1.98l1.7 -1.17l1.7 1.17l-0.59 -1.98Z" opacity="0">
-                  <animate fill="freeze" attributeName="opacity" begin="1.1s" dur="0.4s" to="1"/>
-                </path>
-              </g>
-            </svg>
-          )}
-        </button>
-        <h1 style={{ textAlign: 'center' }} className="main-title">日常瞬间</h1>
-
-        {/* 加载状态 */}
-        {loading && (
-          <div style={{ textAlign: 'center', padding: '40px 0', color: '#888' }}>
-            加载中...
-          </div>
+              <path d="M12 21v1M21 12h1M12 3v-1M3 12h-1" opacity="0">
+                <set fill="freeze" attributeName="opacity" begin="0.7s" to="1"/>
+                <animate fill="freeze" attributeName="d" begin="0.7s" dur="0.2s" values="M12 19v1M19 12h1M12 5v-1M5 12h-1;M12 21v1M21 12h1M12 3v-1M3 12h-1"/>
+              </path>
+              <path d="M18.5 18.5l0.5 0.5M18.5 5.5l0.5 -0.5M5.5 5.5l-0.5 -0.5M5.5 18.5l-0.5 0.5" opacity="0">
+                <set fill="freeze" attributeName="opacity" begin="0.9s" to="1"/>
+                <animate fill="freeze" attributeName="d" begin="0.9s" dur="0.2s" values="M17 17l0.5 0.5M17 7l0.5 -0.5M7 7l-0.5 -0.5M7 17l-0.5 0.5;M18.5 18.5l0.5 0.5M18.5 5.5l0.5 -0.5M5.5 5.5l-0.5 -0.5M5.5 18.5l-0.5 0.5"/>
+              </path>
+            </g>
+          </svg>
+        ) : (
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+            <path fill="none" stroke="currentColor" strokeDasharray="56" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 6c0 6.08 4.92 11 11 11c0.53 0 1.05 -0.04 1.56 -0.11c-1.61 2.47 -4.39 4.11 -7.56 4.11c-4.97 0 -9 -4.03 -9 -9c0 -3.17 1.64 -5.95 4.11 -7.56c-0.07 0.51 -0.11 1.03 -0.11 1.56Z">
+              <animate fill="freeze" attributeName="stroke-dashoffset" dur="0.6s" values="56;0"/>
+            </path>
+            <g fill="currentColor">
+              <path d="M15.22 6.03l2.53 -1.94l-3.19 -0.09l-1.06 -3l-1.06 3l-3.19 0.09l2.53 1.94l-0.91 3.06l2.63 -1.81l2.63 1.81l-0.91 -3.06Z" opacity="0">
+                <animate fill="freeze" attributeName="opacity" begin="0.7s" dur="0.4s" to="1"/>
+              </path>
+              <path d="M19.61 12.25l1.64 -1.25l-2.06 -0.05l-0.69 -1.95l-0.69 1.95l-2.06 0.05l1.64 1.25l-0.59 1.98l1.7 -1.17l1.7 1.17l-0.59 -1.98Z" opacity="0">
+                <animate fill="freeze" attributeName="opacity" begin="1.1s" dur="0.4s" to="1"/>
+              </path>
+            </g>
+          </svg>
         )}
-
-        {/* 错误状态 */}
-        {error && (
-          <div style={{ textAlign: 'center', padding: '40px 0', color: '#dc2626' }}>
-            加载失败: {error}
-          </div>
-        )}
-
-        {/* 数据展示 */}
-        {!loading && !error && moments.map((moment) => (
-          <div key={moment.id} className="moment-card">
-            <div className="moment-header">
-              <div className="moment-user">
-                <img
-                  src="/favicon.ico"
-                  alt="avatar"
-                  style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', background: '#f5f5f5', marginRight: 6 }}
-                />
-                <a href={BLOG_URL} target="_blank" rel="noopener noreferrer" style={{ fontSize: 16, color: '#0070f3', textDecoration: 'none' }}>异飨客</a>
-              </div>
-              <span className="moment-date">{dayjs(moment.date).fromNow()}</span>
-            </div>
-            <div className="moment-title" style={{ fontSize: 18, fontWeight: 600, margin: '8px 0' }}>{moment.title}</div>
-            {moment.mood && (
-              <div className="mood-tag" style={{ display: 'inline-block', background: '#f0f0f0', borderRadius: '12px', padding: '2px 10px', fontSize: 14, color: '#666', margin: '8px 0', marginBottom: 4 }}>{moment.mood}</div>
-            )}
-            {moment.content && (
-              <div className="moment-content" style={{ fontSize: 15, color: '#444', margin: '8px 0', lineHeight: 1.6 }}>
-                <ReactMarkdown
-                  components={{
-                    img: ImageRenderer as any,
-                  }}
-                >
-                  {moment.content}
-                </ReactMarkdown>
-              </div>
-            )}
-            {moment.images && moment.images.length > 0 && (
-              <div className="moment-images" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '8px 0' }}>
-                {moment.images.map((img, idx) => (
+      </button>
+      <h1 style={{ textAlign: 'center' }} className="main-title">日常瞬间</h1>
+      <div>
+        {moments.map(moment => {
+          const divId = `twikoo-moment-${moment.id}`;
+          const isActive = activeCommentId === moment.id;
+          return (
+            <div key={moment.id} className="moment-card">
+              <div className="moment-header">
+                <div className="moment-user">
                   <img
-                    key={idx}
-                    src={img}
-                    alt={`图片${idx + 1}`}
-                    style={{ width: 120, height: 120, objectFit: 'cover', borderRadius: 8, cursor: 'pointer' }}
-                    onClick={() => openZoom(img, moment.images || [], idx)}
-                    loading="lazy"
+                    src="https://cn.cravatar.com/avatar/56cd72b5460ecaa08ddffea9562f5629?size=512"
+                    alt="avatar"
+                    style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', background: '#f5f5f5', marginRight: 6 }}
                   />
-                ))}
+                  { <a href={BLOG_URL} target="_blank" rel="noopener noreferrer" style={{ fontSize: 16, color: '#0070f3', textDecoration: 'none' }}>{moment.username}</a> }
+                </div>
+                <div className="moment-date">{dayjs(moment.date).fromNow()}</div>
               </div>
-            )}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8 }}>
+              {moment.image && <img src={moment.image} alt={moment.title} style={{ width: '100%', borderRadius: 8, margin: '12px 0' }} />}
+              <div style={{ fontWeight: 'bold', fontSize: 16 }} className="moment-title">{moment.title}</div>
+              {moment.mood && (
+                <div className="mood-tag" style={{
+                  display: 'inline-block',
+                  background: '#f0f0f0',
+                  borderRadius: '12px',
+                  padding: '2px 10px',
+                  fontSize: 14,
+                  color: '#666',
+                  margin: '8px 0',
+                  marginBottom: 4,
+                }}>{moment.mood}</div>
+              )}
+              {moment.content && (
+                <div style={{ margin: '8px 0', color: '#444', fontSize: 15 }} className="markdown-content">
+                  <ReactMarkdown>
+                    {moment.content}
+                  </ReactMarkdown>
+                  {/* 新增：渲染图片数组，每行4张 */}
+                  {moment.images && moment.images.length > 0 && (
+                    <div style={{ margin: '12px 0' }}>
+                      {Array.from({ length: Math.ceil(moment.images.length / 4) }).map((_, rowIdx) => (
+                        <div key={rowIdx} style={{ display: 'flex', gap: '2%', marginBottom: 8 }}>
+                          {moment.images!.slice(rowIdx * 4, rowIdx * 4 + 4).map((url, idx) => (
+                            <img
+                              key={url}
+                              src={url}
+                              alt={`图片${rowIdx * 4 + idx + 1}`}
+                              style={{
+                                width: '24%',
+                                borderRadius: 8,
+                                cursor: 'pointer',
+                                objectFit: 'cover',
+                                boxShadow: zoomImg === url ? '0 4px 24px rgba(0,0,0,0.18)' : undefined,
+                                zIndex: zoomImg === url ? 1001 : undefined,
+                                display: zoomImg === url ? 'none' : undefined, // 放大时隐藏原图
+                              }}
+                              onClick={() => {
+                                setZoomImg(url);
+                                setZoomImgList(moment.images!);
+                                setZoomImgIndex(rowIdx * 4 + idx);
+                                setShowOriginal(false);
+                              }}
+                            />
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {/* 遮罩层和放大图片 */}
+                  {zoomImg && (
+                    <div
+                      onClick={() => setZoomImg(null)}
+                      style={{
+                        position: 'fixed',
+                        left: 0,
+                        top: 0,
+                        width: '100vw',
+                        height: '100vh',
+                        background: 'rgba(0,0,0,0.5)',
+                        zIndex: 1000,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'zoom-out',
+                        flexDirection: 'column',
+                      }}
+                    >
+                      <div style={{ position: 'relative', maxWidth: '90vw', maxHeight: '90vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={e => e.stopPropagation()}>
+                        {/* 左侧半圆弧按钮 */}
+                        {zoomImgList.length > 1 && zoomImgIndex > 0 && (
+                          <button
+                            style={{
+                              position: 'absolute',
+                              left: 0,
+                              top: '50%',
+                              transform: 'translateY(-50%)',
+                              width: 32,
+                              height: '60%',
+                              minHeight: 48,
+                              maxHeight: 320,
+                              background: 'rgba(0,0,0,0.10)',
+                              border: 'none',
+                              borderRadius: '0 999px 999px 0',
+                              color: '#fff',
+                              fontSize: 22,
+                              cursor: 'pointer',
+                              zIndex: 2,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              padding: 0,
+                              outline: 'none',
+                              transition: 'background 0.2s',
+                              boxShadow: '2px 0 8px rgba(0,0,0,0.08)',
+                              opacity: 0.7,
+                            }}
+                            onClick={e => {
+                              e.stopPropagation();
+                              if (zoomImgIndex > 0) {
+                                const nextIdx = zoomImgIndex - 1;
+                                setShowOriginal(false);
+                                setZoomImg(zoomImgList[nextIdx]);
+                                setZoomImgIndex(nextIdx);
+                              }
+                            }}
+                            aria-label="上一张"
+                            onMouseOver={e => (e.currentTarget.style.background = 'rgba(0,0,0,0.18)')}
+                            onMouseOut={e => (e.currentTarget.style.background = 'rgba(0,0,0,0.10)')}
+                          >
+                            <span style={{fontSize: 22, fontWeight: 'bold', userSelect: 'none'}}>{'<'}</span>
+                          </button>
+                        )}
+                        {/* 右侧半圆弧按钮 */}
+                        {zoomImgList.length > 1 && zoomImgIndex < zoomImgList.length - 1 && (
+                          <button
+                            style={{
+                              position: 'absolute',
+                              right: 0,
+                              top: '50%',
+                              transform: 'translateY(-50%)',
+                              width: 32,
+                              height: '60%',
+                              minHeight: 48,
+                              maxHeight: 320,
+                              background: 'rgba(0,0,0,0.10)',
+                              border: 'none',
+                              borderRadius: '999px 0 0 999px',
+                              color: '#fff',
+                              fontSize: 22,
+                              cursor: 'pointer',
+                              zIndex: 2,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              padding: 0,
+                              outline: 'none',
+                              transition: 'background 0.2s',
+                              boxShadow: '-2px 0 8px rgba(0,0,0,0.08)',
+                              opacity: 0.7,
+                            }}
+                            onClick={e => {
+                              e.stopPropagation();
+                              if (zoomImgIndex < zoomImgList.length - 1) {
+                                const nextIdx = zoomImgIndex + 1;
+                                setShowOriginal(false);
+                                setZoomImg(zoomImgList[nextIdx]);
+                                setZoomImgIndex(nextIdx);
+                              }
+                            }}
+                            aria-label="下一张"
+                            onMouseOver={e => (e.currentTarget.style.background = 'rgba(0,0,0,0.18)')}
+                            onMouseOut={e => (e.currentTarget.style.background = 'rgba(0,0,0,0.10)')}
+                          >
+                            <span style={{fontSize: 22, fontWeight: 'bold', userSelect: 'none'}}>{'>'}</span>
+                          </button>
+                        )}
+                        {/* 图片本体 */}
+                        {!showOriginal && zoomImg && (
+                          <img
+                            src={zoomImg}
+                            alt="放大图片"
+                            style={{
+                              maxWidth: '90vw',
+                              maxHeight: '90vh',
+                              width: 'auto',
+                              height: 'auto',
+                              display: 'block',
+                              margin: 'auto',
+                              borderRadius: 12,
+                              boxShadow: '0 8px 32px rgba(0,0,0,0.25)',
+                              background: '#fff',
+                              cursor: 'zoom-out',
+                            }}
+                            onClick={() => setZoomImg(null)}
+                          />
+                        )}
+                        {showOriginal && zoomImg && (
+                          <img
+                            src={zoomImg}
+                            alt="原图"
+                            style={{
+                              maxWidth: 'none',
+                              maxHeight: 'none',
+                              width: 'auto',
+                              height: 'auto',
+                              display: loadingOriginal ? 'none' : 'block',
+                              margin: 'auto',
+                              borderRadius: 12,
+                              boxShadow: '0 8px 32px rgba(0,0,0,0.25)',
+                              background: '#fff',
+                              cursor: 'zoom-out',
+                            }}
+                            onClick={() => setZoomImg(null)}
+                            onLoad={() => setLoadingOriginal(false)}
+                          />
+                        )}
+                        {showOriginal && loadingOriginal && (
+                          <div style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0070f3', fontSize: 18, background: 'rgba(255,255,255,0.7)', borderRadius: 12 }}>
+                            原图加载中...
+                          </div>
+                        )}
+                        {/* 底部小圆点 */}
+                        {zoomImgList.length > 1 && (
+                          <div style={{
+                            position: 'absolute',
+                            left: 0,
+                            right: 0,
+                            bottom: 12,
+                            display: 'flex',
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            gap: 8,
+                            zIndex: 2,
+                          }}>
+                            {zoomImgList.map((img, idx) => (
+                              <span
+                                key={img + idx}
+                                onClick={e => {
+                                  e.stopPropagation();
+                                  setShowOriginal(false);
+                                  setZoomImg(img);
+                                  setZoomImgIndex(idx);
+                                }}
+                                style={{
+                                  width: 6,
+                                  height: 6,
+                                  borderRadius: '50%',
+                                  background: idx === zoomImgIndex ? '#0070f3' : 'rgba(255,255,255,0.7)',
+                                  border: idx === zoomImgIndex ? '1.5px solid #0070f3' : '1px solid #ccc',
+                                  display: 'inline-block',
+                                  cursor: 'pointer',
+                                  transition: 'background 0.2s',
+                                }}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
               <button
-                className="comment-btn"
-                onClick={() => setActiveCommentId(activeCommentId === moment.id ? null : moment.id)}
-                style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#f0f0f0', border: 'none', borderRadius: 12, padding: '4px 12px', cursor: 'pointer', fontSize: 14 }}
+                style={{ marginTop: 8, padding: '4px 16px', borderRadius: 6, border: '1px solid #ddd', background: '#fafbfc', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                onClick={() => setActiveCommentId(isActive ? null : moment.id)}
               >
-                <FontAwesomeIcon icon={faComment as IconProp} style={{ width: 16, height: 16 }} />
-                <span>{commentCounts[moment.id] || 0}</span>
+                <FontAwesomeIcon icon={faComment as IconProp} style={{ color: isActive ? '#0070f3' : '#888', fontSize: 14 }} />
+                <span style={{ color: '#888', fontSize: 14 }}>
+                  {typeof commentCounts[moment.id] === 'number' ? commentCounts[moment.id] : '-'}
+                </span>
+                {isActive ? '' : ''}
               </button>
-            </div>
-            {activeCommentId === moment.id && (
-              <div className="twikoo-comment-area" style={{ marginTop: 12, padding: 12, background: '#fafbfc', borderRadius: 8 }}>
-                <div id={`twikoo-moment-${moment.id}`} className="twikoo-container" />
+              <div
+                className="twikoo-comment-area"
+                style={{
+                  marginTop: 16,
+                  display: isActive ? 'block' : 'none',
+                }}
+              >
+                <div id={divId}></div>
               </div>
-            )}
-          </div>
-        ))}
-
-        {/* 图片放大弹窗 */}
-        {zoomImg && (
-          <div
-            className="zoom-modal"
-            onClick={closeZoom}
-            style={{
-              position: 'fixed',
-              top: 0, left: 0, right: 0, bottom: 0,
-              background: 'rgba(0,0,0,0.85)',
-              zIndex: 10000,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <button
-              onClick={showPrev}
-              style={{
-                position: 'absolute', left: 24, top: '50%', transform: 'translateY(-50%)',
-                background: 'rgba(0,0,0,0.5)', color: '#fff', border: 'none', borderRadius: '50%',
-                width: 44, height: 44, fontSize: 28, cursor: 'pointer', zIndex: 2
-              }}
-            >‹</button>
-            <button
-              onClick={showNext}
-              style={{
-                position: 'absolute', right: 24, top: '50%', transform: 'translateY(-50%)',
-                background: 'rgba(0,0,0,0.5)', color: '#fff', border: 'none', borderRadius: '50%',
-                width: 44, height: 44, fontSize: 28, cursor: 'pointer', zIndex: 2
-              }}
-            >›</button>
-            <img
-              src={zoomImg}
-              alt="放大图片"
-              style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 12, boxShadow: '0 4px 24px rgba(0,0,0,0.4)' }}
-              onClick={e => e.stopPropagation()}
-            />
-            <button
-              onClick={closeZoom}
-              style={{
-                position: 'absolute', top: 24, right: 24,
-                background: 'rgba(0,0,0,0.5)', color: '#fff', border: 'none', borderRadius: '50%',
-                width: 40, height: 40, fontSize: 24, cursor: 'pointer', zIndex: 2
-              }}
-            >×</button>
-          </div>
-        )}
-
-        {/* 底部横线提示 */}
-        <div className="bottom-line">
-          <span>已经到底啦</span>
-        </div>
-
-        {/* 音乐播放器 */}
-        <MusicPlayer
-          server="netease"
-          type="playlist"
-          id="13681647281"
-          volume={0.8}
-        />
-
-        {/* Live2D 看板娘 */}
-        <Live2DWidget theme={theme} />
+            </div>
+          );
+        })}
       </div>
-
       <style jsx global>{`
         @import url('https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.7.0/style.css');
         body, .main-container, html {
@@ -423,41 +491,199 @@ const MomentsPage: React.FC = () => {
         .main-container {
           max-width: 820px;
           margin: 0 auto;
-          padding: 24px 8px 40px 8px;
-          background: #fff;
-          min-height: 100vh;
-          transition: background 0.3s, color 0.3s;
         }
-        .main-container.dark-theme {
+        .moment-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 8px;
+        }
+        .moment-user {
+          display: flex;
+          align-items: center;
+        }
+        .moment-date {
+          color: #888;
+          font-size: 14px;
+          margin-left: 12px;
+          white-space: nowrap;
+        }
+        body.dark-theme, .main-container.dark-theme {
           background: #181818 !important;
-          color: #bbbbbb !important;
         }
-        .main-container.dark-theme .main-title {
-          color: #bbbbbb !important;
+        body.light-theme, .main-container.light-theme {
+          background: #fff !important;
         }
-        .moment-card {
+        .markdown-content {
+        }
+        .markdown-content > img {
+          width: calc((100% - 3 * 2%) / 4);
+          margin: 0;
+          border-radius: 8px;
+          cursor: pointer;
+          height: auto;
+          box-sizing: border-box;
+          object-fit: cover;
+        }
+        .markdown-content > img:nth-child(4n) {
+          margin-right: 0;
+        }
+        /* 隐藏全局滚动条，兼容主流浏览器 */
+        html, body, .main-container {
+          -ms-overflow-style: none; /* IE and Edge */
+          scrollbar-width: none;    /* Firefox */
+        }
+        html::-webkit-scrollbar, body::-webkit-scrollbar, .main-container::-webkit-scrollbar {
+          width: 0 !important;
+          height: 0 !important;
+          display: none;
+          background: transparent;
+        }
+        .markdown-content > img {
+          display: inline-block;
+          width: 23%;
+          margin: 1%;
+          border-radius: 8px;
+          cursor: pointer;
+          height: auto;
+          box-sizing: border-box;
+          object-fit: cover;
+        }
+        .markdown-content p {
+          margin-bottom: 0.1em;
+        }
+        .markdown-content blockquote,
+        .markdown-content pre,
+        .markdown-content ul,
+        .markdown-content ol,
+        .markdown-content hr {
+          margin-bottom: 0.4em;
+        }
+        @media (max-width: 600px) {
+          .main-container {
+            max-width: 100%;
+            margin: 0;
+            padding: 0 4vw;
+          }
+          h1 {
+            font-size: 1.3rem;
+          }
+          .markdown-content {
+            flex-direction: column;
+            gap: 0;
+          }
+          .markdown-content > img {
+            width: 100%;
+            margin: 8px 0;
+            border-radius: 6px;
+            display: block;
+          }
+          .main-container > div > div {
+            padding: 10px 6px;
+            margin-bottom: 14px;
+            border-radius: 6px;
+          }
+          /* 保证头像、名称和时间同一行 */
+          .moment-header {
+            flex-direction: row !important;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+          }
+          .moment-user {
+            flex-direction: row;
+            align-items: center;
+          }
+          .moment-date {
+            margin-left: 8px;
+            font-size: 13px;
+          }
+          .main-container button {
+            font-size: 13px;
+            padding: 4px 10px;
+            border-radius: 5px;
+          }
+          .main-container img {
+            max-width: 100%;
+            height: auto;
+          }
+          .main-container span, .main-container div {
+            font-size: 15px;
+          }
+        }
+        /* 横线到底提示 */
+        .bottom-line {
+          width: 100%;
+          text-align: center;
+          border: none;
+          border-top: 1.5px solid #e0e0e0;
+          color: #888;
+          font-size: 15px;
+          margin: 36px 0 18px 0;
+          position: relative;
+          background: transparent;
+        }
+        .bottom-line span {
+          position: relative;
+          top: -0.9em;
           background: #fff;
-          border-radius: 12px;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-          margin: 18px 0;
-          padding: 18px 18px 12px 18px;
-          transition: background 0.3s, border-color 0.3s, box-shadow 0.3s;
-          border: 1px solid #f0f0f0;
+          padding: 0 18px;
+          color: #888;
+          font-size: 15px;
         }
-        body.dark-theme .moment-card,
-        .main-container.dark-theme .moment-card {
-          background: #23232a !important;
-          border-color: #333 !important;
-          color: #bbbbbb !important;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+        body.dark-theme .bottom-line,
+        .main-container.dark-theme .bottom-line {
+          border-top: 1.5px solid #333;
+          color: #bbbbbb;
+        }
+        body.dark-theme .bottom-line span,
+        .main-container.dark-theme .bottom-line span {
+          background: #181818;
+          color: #bbbbbb;
+        }
+        .moment-title {
+          font-weight: bold;
+          font-size: 16px;
+        }
+        .main-title {
+          text-align: center;
+        }
+        .main-container button {
+          background: #fafbfc;
+        }
+        body.dark-theme .main-container button,
+        .main-container.dark-theme button {
+          background: #232323 !important;
+          border-color: #444 !important;
         }
         body.dark-theme .moment-title,
         .main-container.dark-theme .moment-title {
           color: #bbbbbb !important;
         }
-        body.dark-theme .moment-content,
-        .main-container.dark-theme .moment-content {
+        body.dark-theme .markdown-content,
+        .main-container.dark-theme .markdown-content {
           color: #bbbbbb !important;
+        }
+        body.dark-theme .main-title,
+        .main-container.dark-theme .main-title {
+          color: #bbbbbb !important;
+        }
+        .moment-card {
+          border: 1px solid #eee;
+          border-radius: 12px;
+          margin-bottom: 32px;
+          padding: 32px;
+        }
+        body.dark-theme .moment-card,
+        .main-container.dark-theme .moment-card {
+          border-color: #333 !important;
+        }
+        .twikoo-comment-area {
+          background: #fafbfc;
+          border: 1px solid #e0e0e0;
+          border-radius: 8px;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+          padding: 16px;
         }
         body.dark-theme .twikoo-comment-area,
         .main-container.dark-theme .twikoo-comment-area {
@@ -514,49 +740,34 @@ const MomentsPage: React.FC = () => {
           background: #333 !important;
           color: #aaa !important;
         }
-        /* 深色模式下评论按钮 */
-        body.dark-theme .comment-btn,
-        .main-container.dark-theme .comment-btn {
-          background: #333 !important;
-          color: #aaa !important;
-        }
-        /* 底部横线提示 */
-        .bottom-line {
-          text-align: center;
-          margin: 40px 0 20px;
-          position: relative;
-        }
-        .bottom-line::before {
-          content: '';
-          display: block;
-          width: 100%;
-          height: 1px;
-          background: linear-gradient(to right, transparent, #e0e0e0, transparent);
-          position: absolute;
-          top: 50%;
-          left: 0;
-          z-index: 0;
-        }
-        body.dark-theme .bottom-line::before,
-        .main-container.dark-theme .bottom-line::before {
-          background: linear-gradient(to right, transparent, #444, transparent);
-        }
-        .bottom-line span {
-          background: #fff;
-          padding: 0 16px;
-          color: #aaa;
-          font-size: 14px;
-          position: relative;
-          z-index: 1;
-        }
-        body.dark-theme .bottom-line span,
-        .main-container.dark-theme .bottom-line span {
-          background: #181818;
-          color: #666;
-        }
       `}</style>
+      {/* 底部横线提示 */}
+      <div className="bottom-line">
+        <span>已经到底啦</span>
+      </div>
+
+      {/* 音乐播放器 */}
+      <MusicPlayer
+        server="netease"
+        type="playlist"
+        id="13681647281"
+        volume={0.8}
+      />
+
+      {/* Live2D 看板娘 */}
+      <Live2DWidget theme={theme} />
+    </div>
     </>
   );
 };
 
-export default MomentsPage;
+export const getStaticProps: GetStaticProps = async () => {
+  const moments = await getMoments();
+  return {
+    props: {
+      moments,
+    }
+  };
+};
+
+export default MomentsPage; 
