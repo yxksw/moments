@@ -1,9 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: "export",
   async headers() {
     return [
       {
-        source: "/api/:path*",
+        source: "/recent-moments.json",
         headers: [
           {
             key: "Access-Control-Allow-Origin",
@@ -11,7 +12,7 @@ const nextConfig = {
           },
           {
             key: "Access-Control-Allow-Methods",
-            value: "GET, POST, OPTIONS",
+            value: "GET, OPTIONS",
           },
           {
             key: "Access-Control-Allow-Headers",
