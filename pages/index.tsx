@@ -1,6 +1,4 @@
-import { GetStaticProps } from 'next';
 import Head from 'next/head';
-import { getMoments } from '../lib/notion';
 import React, { useEffect, useRef, useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faComment } from '@fortawesome/free-solid-svg-icons';
@@ -27,14 +25,13 @@ interface Moment {
   images?: string[]; // 新增图片数组字段
 }
 
-interface MomentsPageProps {
-  moments: Moment[];
-}
-
 const TWIKOO_URL = process.env.NEXT_PUBLIC_TWIKOO_URL || '';
 const BLOG_URL = process.env.NEXT_PUBLIC_BLOG_URL || 'https://blog.lusyoe.com';
 
-const MomentsPage: React.FC<MomentsPageProps> = ({ moments }) => {
+const MomentsPage: React.FC = () => {
+  const [moments, setMoments] = useState<Moment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
   const twikooInitedRef = useRef<string | null>(null);
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
@@ -49,6 +46,31 @@ const MomentsPage: React.FC<MomentsPageProps> = ({ moments }) => {
   // 新增主题状态
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [now, setNow] = useState(Date.now());
+
+  // 客户端获取数据
+  useEffect(() => {
+    const fetchMoments = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch('/api/moments');
+        if (!response.ok) {
+          throw new Error('Failed to fetch moments');
+        }
+        const data = await response.json();
+        if (data.success) {
+          setMoments(data.data);
+        } else {
+          setError(data.message || '获取数据失败');
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : '未知错误');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchMoments();
+  }, []);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 60 * 1000);
@@ -191,8 +213,10 @@ const MomentsPage: React.FC<MomentsPageProps> = ({ moments }) => {
         )}
       </button>
       <h1 style={{ textAlign: 'center' }} className="main-title">日常瞬间</h1>
+      {loading && <div style={{ textAlign: 'center', padding: 40 }}>加载中...</div>}
+      {error && <div style={{ textAlign: 'center', padding: 40, color: 'red' }}>错误: {error}</div>}
       <div>
-        {moments.map(moment => {
+        {!loading && !error && moments.map(moment => {
           const divId = `twikoo-moment-${moment.id}`;
           const isActive = activeCommentId === moment.id;
           return (
@@ -759,15 +783,6 @@ const MomentsPage: React.FC<MomentsPageProps> = ({ moments }) => {
     </div>
     </>
   );
-};
-
-export const getStaticProps: GetStaticProps = async () => {
-  const moments = await getMoments();
-  return {
-    props: {
-      moments,
-    }
-  };
 };
 
 export default MomentsPage; 

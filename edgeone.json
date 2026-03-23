@@ -6,7 +6,7 @@
   },
   "headers": [
     {
-      "source": "/recent-moments.json",
+      "source": "/api/(.*)",
       "headers": [
         {
           "key": "Access-Control-Allow-Origin",
@@ -35,5 +35,13 @@
         }
       ]
     }
-  ]
+  ],
+  "functions": {
+    "api/moments.js": {
+      "path": "/api/moments"
+    },
+    "api/recent-moments.js": {
+      "path": "/api/recent-moments"
+    }
+  }
 }
