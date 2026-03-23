@@ -35,13 +35,5 @@
         }
       ]
     }
-  ],
-  "functions": {
-    "api/moments.js": {
-      "path": "/api/moments"
-    },
-    "api/recent-moments.js": {
-      "path": "/api/recent-moments"
-    }
-  }
+  ]
 }
