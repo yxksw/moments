@@ -1,4 +1,4 @@
-name: Deploy to EdgeOne Pages
+name: Build and Deploy to EdgeOne
 
 on:
   workflow_dispatch:
@@ -13,20 +13,16 @@ on:
           - preview
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: pages
-  cancel-in-progress: false
+  contents: write
 
 jobs:
-  build:
+  build-and-commit:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -48,37 +44,19 @@ jobs:
         run: npm run build
 
       - name: Check output
-        run: ls -la out/
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-output
-          path: out/
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: ${{ github.event.inputs.environment }}
-      url: ${{ steps.deploy.outputs.url }}
-    steps:
-      - name: Download artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: build-output
-          path: out/
-
-      - name: Deploy to EdgeOne
-        id: deploy
-        env:
-          EDGEONE_TOKEN: ${{ secrets.EDGEONE_TOKEN }}
-          EDGEONE_PROJECT_ID: ${{ secrets.EDGEONE_PROJECT_ID }}
         run: |
-          npm install -g @edgeone/cli
-          edgeone login --token "$EDGEONE_TOKEN"
-          if [ "${{ github.event.inputs.environment }}" = "production" ]; then
-            edgeone pages deploy out/ --project-id "$EDGEONE_PROJECT_ID" --production
-          else
-            edgeone pages deploy out/ --project-id "$EDGEONE_PROJECT_ID"
-          fi
+          ls -la out/
+          cat out/recent-moments.json | head -20
+
+      - name: Commit and push
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add out/ -f
+          git diff --staged --quiet || git commit -m "chore: update build output [skip ci]"
+          git push
+
+      - name: Trigger EdgeOne Deploy
+        run: |
+          echo "Build completed and pushed. EdgeOne will auto-deploy."
+          echo "Check deployment status at: https://console.tencentcloud.com/edgeone/pages/project/pages-03zttiibojgu"
